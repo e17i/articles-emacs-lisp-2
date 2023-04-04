@@ -236,6 +236,10 @@ In a similar way, a ~local-labels~ macro should be devised. But there,
 the local function definitions, possibly having recursive
 definitions, would also be subject to the replacement.
 
+But as code-walking in combination with macros cannot work reliably,
+this stays an idea. In real life, it can be taken as a hint to use
+unique names also for local functions.
+
 * Defining detached value namespaces for macros
 
 In a similar way, a macro can be used creating a local value namespace
@@ -328,11 +332,11 @@ and be fine.
 In conclusion, function names should be considered (globally) visible
 to arbitrary code and therefore must be unique, even when defined
 within local environments. Macros addressing a function cannot expect
-it to be replaced by a different local function. This can be
-guaranteed by using local function namespaces. On the other side,
+it to be replaced by a local function.
+On the other side,
 lexical variable names can only be used within their lexical
 environment. So here macro expansions must make sure not interfere
-with them, which again can be guaranteed using local value namespaces.
+with them, which can be addressed using local value namespaces.
 
 As long as these two points are respected, the separate function
 namespace can actually help make macros work as expected.
