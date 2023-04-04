@@ -1,0 +1,344 @@
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="/chrome/rethink.css" />
+#+HTML_HEAD_EXTRA: <img src="/chrome/image1.jpg" />
+#+OPTIONS: toc:nil num:nil html-style:nil
+# #+INFOJS_OPT: view:info toc:nil path:/chrome/org-info.js
+#+AUTHOR: Jörg Kollmann
+#+TITLE: On function/value namespaces in Emacs Lisp
+#+DATE: 2023-03-29
+
+* 
+
+Trying to understand, why there are different namespaces for functions
+and values in Lisp_2, I was diving into that a little bit, taking some
+notes and preparing a set of macros. Providing local namespaces for
+the development of further macros, they can help to prevent unwanted
+free name capture.
+
+* Macro expansion and local functions
+
+When diving into that topic, you eventually stumble upon [Gabriel,
+Pitman: Technical Issues of Separation in Function Cells and Value
+Cells, Lisp and Symbolic Computation, Vol 1 No 1, June 1988, pp.
+81-101]. According to that paper, among others a prime reason for two
+separate namespaces is the existence of macros, as expressed in the
+well known citation taken from there: "a single namespace is of
+fundamental importance, and therefore macros are problematic [... but]
+macros are fundamental, and therefore a single namespace is
+problematic".
+
+So which problem with macros is solved by different namespaces? When
+accidentally naming a local variable the same as a global function,
+with a single namespace this would hide the global function. While not
+being encouraged at all, name clashes could be resolved within a local
+environment without refactoring the variable names. If the function was not
+addressed within the environment, the fact that it is hidden wouldn't
+lead to an erraneous result when evaluating the environment's forms.
+But this would work only as long as no macros are used. As macros can
+expand arbitrary code into the environment, this prerequisite can not
+be checked.
+
+To solve this problem with name collisions in macro expansions, the
+following aspects need to be handled. For variable names of
+let-environments within the macro expansion, it is typically handled
+by creating uninterned anonymouns symbols (by means of ~gensym~)
+replacing them. This way, for variables, effectively a local namespace
+is created only visible within the macro expansion. Next, local variable
+names of the environment can't be addressed from the macro expansion
+as long as they can't be known in the macro definition. So addressing
+an arbitrary value symbol from within macro expansion would be an error, if
+that name was not communicated somehow.
+
+Stays the question of function names being addressed from the macro.
+Here, in accordance to the previous statement, the set of global
+functions can be seen as being communicated. So macros can expect to
+address global function names regardless of the local environment they
+are expanded into. To make this work, the problem mentioned above
+would be mitigated by using a common function namespace shared between
+the place the macro is defined in and environments it is expanded
+into. Given that, macros can expect function names addressed in their
+definition to be valid also in the places they are expanded into.
+
+But in the paper mentioned above, an example is given also
+showing name collisions in function namespace. It is repeated
+here, slightly adopted to emacs lisp:
+
+#+name: symbol-capture
+#+begin_src emacs-lisp :results value org :exports both
+(defmacro foo (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+
+(defun baz (x y)
+  (cl-flet ((cons (x y) (cons y x)))
+    (foo x y)))
+
+(baz 1 2)
+#+end_src
+
+Which results in an output probably not intended by the macro author:
+
+#+RESULTS: symbol-capture
+#+begin_src org
+(((nil . 2) . 1) . foo)
+#+end_src
+
+This could be solved within the macro by replacing the function symbol
+~cons~ by it's function object valid when the macro was defined instead
+of resolving it in the place of it's expansion:
+
+#+name: symbol-fixture
+#+begin_src emacs-lisp :results value org :exports both
+(defmacro foo (x y)
+  `(funcall ,(symbol-function 'cons) 'foo
+            (funcall ,(symbol-function 'cons) ,x
+                     (funcall ,(symbol-function 'cons) ,y nil))))
+
+(defun baz (x y)
+  (cl-flet ((cons (x y) (cons y x)))
+    (foo x y)))
+
+(baz 1 2)
+#+end_src
+
+Which now gives the result probably intended:
+
+#+RESULTS: symbol-fixture
+#+begin_src org
+(foo 1 2)
+#+end_src
+
+But now, the ~funcall~ function name is still subject to possible free
+name capture.
+The paper's section concludes: "With the advent of FLET, LABELS, and
+MACROLET, the risk of conflict is considerably higher".
+
+What's done here manually to solve the conflict is similar to the
+solution of hygienic macros, resolving free symbols in the lexical
+context of macro definitions. But maybe this actually was not
+intended by the macro. After all, it is a valid use case to replace
+certain functions at runtime by different implementations, which
+should be respected globally and also by macro expansions.
+
+In [Hoyte, Doug: Let over Lambda, 2008, lulu.com], Hoyte concludes,
+"Hygienic macros are, in the best of situations, a beginner's safety
+guard-rail; in the worst of situations they form an electric fence,
+trapping their victims in a sanitised, capture-safe prison".
+
+* Creating a local function namespace
+
+The considerations shown above give a strong hint that a common global function
+namespace is expected to exist, having the properties of being shared
+between all global parts of a running system and still being
+dynamically modifyable (within boundaries) while staying in a
+consistent state.
+
+So an alternate approach would be not to fix the error within the macro
+definition, but instead in the local function definition. As local variable
+names are expected to not being hidden by macro expansions---and
+consequently, laying the responsibility of not doing that into the
+definition of macros, the same could also be done for local function
+names. But here, as a common global function namespace is
+expected, the responsibility of not hiding it within a local
+environment should be placed exactly upon these local environment
+definitions and not on the macro definitions.
+
+In consequence, local function definitions would have to make sure
+their names don't clash with any global function definition, so these
+local functions could be only addressed from expressions lexically
+within the local environment, but not from macro expansions.
+
+This idea can be implemented by a macro using ~gensym~ for local
+function names, quite similar to the way local variable names within
+macros are generated. Now, in each place a local function is
+addressed within the environment, it must be replaced by the
+corresponding symbol generated, but before macro expansion takes
+place. Otherwise, it would also modify the macro expansion, which we
+don't want to happen here.
+
+The macro ~local-flet~ uses a function code-walking the given
+body, doing this replacement. Fortunately, given the definition of a
+separate function namespace, function names can only appear in exactly
+two situations: in the function position of expressions, or being
+sharp-quoted; that is as argument to the ~function~ function. The
+macro expects the same arguments as ~cl-flet~ and creates a local
+function namespace not visible to macro expansions within.
+
+#+begin_src emacs-lisp :lexical yes
+(defmacro local-flet (fdefs &rest body)
+  (declare (indent defun))
+  (let ((fncsyms (cl-loop for (name . _) in fdefs collect
+                          `(,name . ,(gensym name)))))
+    (cl-labels ((lf--assoc-value-safe (name assoc)
+                                      (let ((val (assoc name assoc)))
+                                        (if val
+                                            (cdr val)
+                                          name)))
+                (lf--replace-local-functions (fncsyms expr)
+                                             (pcase expr
+                                               (`(function ,fnc) `(function ,(lf--assoc-value-safe fnc fncsyms)))
+                                               (`(,fnc . ,args) `(,(lf--assoc-value-safe fnc fncsyms)
+                                                                  .
+                                                                  ,(cl-loop for elem in args collect
+                                                                            (lf--replace-local-functions fncsyms elem))))
+                                               (value value))))
+      `(cl-flet ,(cl-loop for (name . expr) in fdefs collect
+                          `(,(lf--assoc-value-safe name fncsyms) . ,expr))
+         ,@(cl-loop for expr in body collect
+                    (lf--replace-local-functions fncsyms expr))))))
+#+end_src
+
+Using this, the function definition from the example above can be
+modified as follows, resolving the issue without any need to modify the
+macro:
+
+#+name: local-function-namespace
+#+begin_src emacs-lisp :lexical yes :results value org :exports both
+(defmacro foo (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+
+(defun baz (x y)
+  (local-flet ((cons (x y) (cons y x)))
+    (foo x y)))
+
+(baz 1 2)
+#+end_src
+
+#+RESULTS: local-function-namespace
+#+begin_src org
+(foo 1 2)
+#+end_src
+
+And, demonstrating simultaneous application of the local function and
+the macro expansion shows that it works lexically:
+
+#+name: local-function-namespace2
+#+begin_src emacs-lisp :lexical yes :results value org :exports both
+(defun baz (x y)
+  (local-flet ((cons (x y) (cons y x)))
+    (cons 0 (foo x (funcall #'cons 3 y)))))
+
+(baz 1 2)
+#+end_src
+
+#+RESULTS: local-function-namespace2
+#+begin_src org
+((foo 1 (2 . 3)) . 0)
+#+end_src
+
+And now, if you additionally choose to replace the
+global definition of ~cons~ using a dynamic approach like ~cl-letf~,
+as expected this affects the global environment and macro expansions,
+but leaves the local definition.
+So while not being respected by the solution modifying the macro to
+contain the fixed function object, it is respected by the solution
+shown here.
+
+In a similar way, a ~local-labels~ macro should be devised. But there,
+the local function definitions, possibly having recursive
+definitions, would also be subject to the replacement.
+
+* Defining detached value namespaces for macros
+
+In a similar way, a macro can be used creating a local value namespace
+within macro expansions, this way avoiding interference with the
+environment a macro is expanded into. It is an extension of the
+~with-gensyms~ macro often found. The syntax of ~with-macro-namespace~
+is similar to that of ~let~, naming a list of variables either
+uninitialized or bound to the value of an expression. These variable
+names can be used safely and "un-unquoted" within the macro
+definition.
+
+The macro works by building a quoted expression (which generates the
+s-exp to be used as macro expansion), but unquoting all references to
+the variables of the detached namespace. It is done by expanding each
+quoted list into a list expression whose elements are quoted. If an
+element is part of the detached namespace, it is not quoted, this way
+effectively unquoting it.
+
+It then expands to an expression where the variables are defined and
+initialized as gensyms, then putting in the quoted s-exp previously built.
+So at the end, it automates what is typically done when writing
+macros---after all, that's what macros are made for, arent they?
+
+#+begin_src emacs-lisp
+(defmacro with-macro-namespace (syms body)
+  (declare (indent defun))
+  (let ((symnames (mapcar (lambda (sym)
+                            (pcase sym
+                              (`(,var . ,_) var)
+                              (var var)))
+                          syms))
+        (pquote (gensym)))
+    (let ((qbody
+           (macroexpand-all `(cl-macrolet ((quote (arg)
+                                                  (cond
+                                                   ((atom arg) (if (member arg (quote ,symnames))
+                                                                   arg
+                                                                 `(,',pquote ,arg)))
+                                                   (`(list ,@(mapcar (lambda (elem) `(quote ,elem))
+                                                                     arg))))))
+                               (list 'let
+                                     (list
+                                      ,@(mapcar (lambda (symdef)
+                                                  (cond
+                                                   ((atom symdef) symdef)
+                                                   (`(list ,@symdef))))
+                                                syms))
+                                     ,body)))))
+      `(let ,(mapcar (lambda (sym)
+                       `(,sym (gensym ,(symbol-name sym))))
+                     symnames)
+         (cl-macrolet ((,pquote (arg) `(quote ,arg)))
+           ,qbody)))))
+#+end_src
+
+So instead of writing (just for the sake of an example):
+
+#+begin_src emacs-lisp
+(defmacro foo (expr)
+  (let ((val (gensym)))
+    `(let ((,val ,expr))
+       (1+ ,val))))
+#+end_src
+
+you would juse use this:
+
+#+name: macro-namespace-example
+#+begin_src emacs-lisp :results code :exports both
+(defmacro foo (expr)
+  (with-macro-namespace ((val expr))
+    `(1+ val)))
+#+end_src
+
+expanding to
+
+#+RESULTS: macro-namespace-example
+#+begin_src emacs-lisp
+(defmacro foo (expr)
+  (let ((val (gensym "val")))
+    (list 'let
+          (list
+           (list val expr))
+          (list '1+ val))))
+#+end_src
+
+and be fine.
+
+* Conclusion
+
+In conclusion, function names should be considered (globally) visible
+to arbitrary code and therefore must be unique, even when defined
+within local environments. Macros addressing a function cannot expect
+it to be replaced by a different local function. This can be
+guaranteed by using local function namespaces. On the other side,
+lexical variable names can only be used within their lexical
+environment. So here macro expansions must make sure not interfere
+with them, which again can be guaranteed using local value namespaces.
+
+As long as these two points are respected, the separate function
+namespace can actually help make macros work as expected.
+
+* COMMENT Local Variables
+  # Local Variables:
+  # org-html-htmlize-output-type: css
+  # org-html-postamble-format:(("en" "<p class=\"author\">Author: %a (<a rel=\"me\" href=\"https://mastodon.social/@joergkb\">@joergkb@mastodon.social</a>)</p> <p>Made on emacs org-mode with <a href=\"https://jessekelly881-rethink.surge.sh/\">Rethink</a></p>"))
+  # org-html-postamble: t
+  # org-html-preamble: nil
+  # End:
