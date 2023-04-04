@@ -1,10 +1,9 @@
 #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="/chrome/rethink.css" />
-#+HTML_HEAD_EXTRA: <img src="/chrome/image1.jpg" />
 #+OPTIONS: toc:nil num:nil html-style:nil
 # #+INFOJS_OPT: view:info toc:nil path:/chrome/org-info.js
 #+AUTHOR: Jörg Kollmann
 #+TITLE: On function/value namespaces in Emacs Lisp
-#+DATE: 2023-03-29
+#+DATE: 2023-04-04
 
 * 
 
@@ -340,5 +339,6 @@ namespace can actually help make macros work as expected.
   # org-html-htmlize-output-type: css
   # org-html-postamble-format:(("en" "<p class=\"author\">Author: %a (<a rel=\"me\" href=\"https://mastodon.social/@joergkb\">@joergkb@mastodon.social</a>)</p> <p>Made on emacs org-mode with <a href=\"https://jessekelly881-rethink.surge.sh/\">Rethink</a></p>"))
   # org-html-postamble: t
-  # org-html-preamble: nil
+  # org-html-preamble-format:(("en" "<img src=\"/chrome/image1.jpg\"/><div style=\"padding:2vh\"><a style=\"font-weight:900; text-decoration:none\" href=\"/\">Home</a><span style=\"float: right\">last changed: %d</span></div>"))
+  # org-html-preamble: 't
   # End:
