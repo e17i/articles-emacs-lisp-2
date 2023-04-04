@@ -156,7 +156,10 @@ The macro ~local-flet~ uses a function code-walking the given
 body, doing this replacement. Fortunately, given the definition of a
 separate function namespace, function names can only appear in exactly
 two situations: in the function position of expressions, or being
-sharp-quoted; that is as argument to the ~function~ function. The
+sharp-quoted; that is as argument to the ~function~ function.
+Unfortunately, code-walking isn't that easy, so this works only in
+simple cases.
+The
 macro expects the same arguments as ~cl-flet~ and creates a local
 function namespace not visible to macro expansions within.
 
