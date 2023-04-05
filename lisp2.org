@@ -3,7 +3,7 @@
 # #+INFOJS_OPT: view:info toc:nil path:/chrome/org-info.js
 #+AUTHOR: Jörg Kollmann
 #+TITLE: On function/value namespaces in Emacs Lisp
-#+DATE: 2023-04-04
+#+DATE: 2023-04-05
 
 * 
 
@@ -144,11 +144,13 @@ their names don't clash with any global function definition, so these
 local functions could be only addressed from expressions lexically
 within the local environment, but not from macro expansions.
 
-This idea can be implemented by a macro using ~gensym~ for local
-function names, quite similar to the way local variable names within
-macros are generated. Now, in each place a local function is
-addressed within the environment, it must be replaced by the
-corresponding symbol generated, but before macro expansion takes
+This idea can't be implemented as a macro, as this would involve code
+walking prior to macro expansion. Nevertheless, the following
+experiment can illustrate what to do manually to avoid name clashes
+when using local functions.
+
+In each place a local function is addressed within the environment, it
+would be replaced by a unique symbol, but before macro expansion takes
 place. Otherwise, it would also modify the macro expansion, which we
 don't want to happen here.
 
@@ -234,7 +236,7 @@ So while not being respected by the solution modifying the macro to
 contain the fixed function object, it is respected by the solution
 shown here.
 
-In a similar way, a ~local-labels~ macro should be devised. But there,
+In a similar way, a ~local-labels~ macro would be devised. But there,
 the local function definitions, possibly having recursive
 definitions, would also be subject to the replacement.
 
@@ -334,14 +336,20 @@ and be fine.
 In conclusion, function names should be considered (globally) visible
 to arbitrary code and therefore must be unique, even when defined
 within local environments. Macros addressing a function cannot expect
-it to be replaced by a local function.
-On the other side,
-lexical variable names can only be used within their lexical
-environment. So here macro expansions must make sure not interfere
-with them, which can be addressed using local value namespaces.
+it to be hidden by local functions. A solution to this could use an
+approach similar to that of implementing package namespaces, which
+also aim to prevent name clashes between globally visible function
+names.
+
+On the other side, lexical variable names can only be used within
+their lexical environment. So here macro expansions must make sure not
+interfere with them, which can be addressed using local value
+namespaces.
 
 As long as these two points are respected, the separate function
-namespace can actually help make macros work as expected.
+namespace helping to prevent hiding global functions within local
+variable-environments can serve as another building block to make
+macros work as expected.
 
 * COMMENT Local Variables
   # Local Variables:
