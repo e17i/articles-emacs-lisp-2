@@ -232,16 +232,13 @@ And now, if you additionally choose to replace the
 global definition of ~cons~ using a dynamic approach like ~cl-letf~,
 as expected this affects the global environment and macro expansions,
 but leaves the local definition.
-So while not being respected by the solution modifying the macro to
-contain the fixed function object, it is respected by the solution
-shown here.
 
 In a similar way, a ~local-labels~ macro would be devised. But there,
 the local function definitions, possibly having recursive
 definitions, would also be subject to the replacement.
 
 But as code-walking without prior macro expansion cannot work reliably,
-this stays an idea. In real life, it can be taken as a hint to use
+this stays an idea. In real life, it can be taken as a hint how to use
 unique names also for local functions.
 
 * Defining detached value namespaces for macros
