@@ -169,13 +169,15 @@ function namespace not visible to macro expansions within.
   (let ((fncsyms (cl-loop for (name . _) in fdefs collect
                           `(,name . ,(gensym name)))))
     (cl-labels ((lf--assoc-value-safe (name assoc)
-                                      (let ((val (assoc name assoc)))
-                                        (if val
-                                            (cdr val)
-                                          name)))
+                                      (pcase name
+                                        (`(lambda ,args ,body) `(lambda ,args ,(lf--replace-local-functions fncsyms body)))
+                                        (name (let ((val (assoc name assoc)))
+                                                (if val (cdr val)
+                                                  name)))))
                 (lf--replace-local-functions (fncsyms expr)
                                              (pcase expr
                                                (`(function ,fnc) `(function ,(lf--assoc-value-safe fnc fncsyms)))
+                                               (`(quote . ,rest) `(quote . ,rest))
                                                (`(,fnc . ,args) `(,(lf--assoc-value-safe fnc fncsyms)
                                                                   .
                                                                   ,(cl-loop for elem in args collect
@@ -214,14 +216,14 @@ the macro expansion shows that it works lexically:
 #+begin_src emacs-lisp :lexical yes :results value org :exports both
 (defun baz (x y)
   (local-flet ((cons (x y) (cons y x)))
-    (cons 0 (foo x (funcall #'cons 3 y)))))
+    (cons 0 (foo x (funcall #'cons '(cons 3 4) y)))))
 
 (baz 1 2)
 #+end_src
 
 #+RESULTS: local-function-namespace2
 #+begin_src org
-((foo 1 (2 . 3)) . 0)
+((foo 1 (2 cons 3 4)) . 0)
 #+end_src
 
 And now, if you additionally choose to replace the

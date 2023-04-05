@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-04-05 Mi. 01:46 -->
+<!-- 2023-04-05 Mi. 02:34 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>On function/value namespaces in Emacs Lisp</title>
@@ -18,9 +18,9 @@
 <div id="content" class="content">
 <h1 class="title">On function/value namespaces in Emacs Lisp</h1>
 
-<div id="outline-container-orgb4b87f2" class="outline-2">
-<h2 id="orgb4b87f2"></h2>
-<div class="outline-text-2" id="text-orgb4b87f2">
+<div id="outline-container-orgab65b79" class="outline-2">
+<h2 id="orgab65b79"></h2>
+<div class="outline-text-2" id="text-orgab65b79">
 <p>
 Trying to understand, why there are different namespaces for functions
 and values in Lisp<sub>2</sub>, I was diving into that a little bit, taking some
@@ -31,9 +31,9 @@ free name capture.
 </div>
 </div>
 
-<div id="outline-container-org6289d3d" class="outline-2">
-<h2 id="org6289d3d">Macro expansion and local functions</h2>
-<div class="outline-text-2" id="text-org6289d3d">
+<div id="outline-container-org69fb647" class="outline-2">
+<h2 id="org69fb647">Macro expansion and local functions</h2>
+<div class="outline-text-2" id="text-org69fb647">
 <p>
 When diving into that topic, you eventually stumble upon [Gabriel,
 Pitman: Technical Issues of Separation in Function Cells and Value
@@ -91,11 +91,11 @@ here, slightly adopted to emacs lisp:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org39c0990">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="org111f7b7">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
-    (foo x y)))
+    (<span class="org-keyword">foo</span> x y)))
 
 (baz 1 2)
 </pre>
@@ -117,14 +117,14 @@ of resolving it in the place of it's expansion:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org6e557a3">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
+<pre class="src src-emacs-lisp" id="org63a7fa1">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
   `(funcall ,(symbol-function 'cons) 'foo
             (funcall ,(symbol-function 'cons) ,x
                      (funcall ,(symbol-function 'cons) ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
-    (foo x y)))
+    (<span class="org-keyword">foo</span> x y)))
 
 (baz 1 2)
 </pre>
@@ -164,9 +164,9 @@ trapping their victims in a sanitised, capture-safe prison".
 </div>
 </div>
 
-<div id="outline-container-orgd03c644" class="outline-2">
-<h2 id="orgd03c644">Creating a local function namespace</h2>
-<div class="outline-text-2" id="text-orgd03c644">
+<div id="outline-container-org9ee779a" class="outline-2">
+<h2 id="org9ee779a">Creating a local function namespace</h2>
+<div class="outline-text-2" id="text-org9ee779a">
 <p>
 The considerations shown above give a strong hint that a common global function
 namespace is expected to exist, having the properties of being shared
@@ -223,13 +223,15 @@ function namespace not visible to macro expansions within.
   (<span class="org-keyword">let</span> ((fncsyms (<span class="org-keyword">cl-loop</span> for (name . _) in fdefs collect
                           `(,name . ,(gensym name)))))
     (<span class="org-keyword">cl-labels</span> ((lf--assoc-value-safe (name assoc)
-                                      (<span class="org-keyword">let</span> ((val (assoc name assoc)))
-                                        (<span class="org-keyword">if</span> val
-                                            (cdr val)
-                                          name)))
+                                      (<span class="org-keyword">pcase</span> name
+                                        (`(<span class="org-keyword">lambda</span> ,args ,body) `(<span class="org-keyword">lambda</span> ,args ,(lf--replace-local-functions fncsyms body)))
+                                        (name (<span class="org-keyword">let</span> ((val (assoc name assoc)))
+                                                (<span class="org-keyword">if</span> val (cdr val)
+                                                  name)))))
                 (lf--replace-local-functions (fncsyms expr)
                                              (<span class="org-keyword">pcase</span> expr
                                                (`(<span class="org-keyword">function</span> ,fnc) `(<span class="org-keyword">function</span> ,(lf--assoc-value-safe fnc fncsyms)))
+                                               (`(<span class="org-keyword">quote</span> . ,rest) `(<span class="org-keyword">quote</span> . ,rest))
                                                (`(,fnc . ,args) `(,(lf--assoc-value-safe fnc fncsyms)
                                                                   .
                                                                   ,(<span class="org-keyword">cl-loop</span> for elem in args collect
@@ -249,11 +251,11 @@ macro:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgf8e7018">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="org8506de2">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
-  (local-flet ((cons (x y) (cons y x)))
-    (foo x y)))
+  (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
+    (<span class="org-keyword">foo</span> x y)))
 
 (baz 1 2)
 </pre>
@@ -270,16 +272,16 @@ the macro expansion shows that it works lexically:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orga82d3d0">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
-  (local-flet ((cons (x y) (cons y x)))
-    (cons 0 (foo x (funcall #'cons 3 y)))))
+<pre class="src src-emacs-lisp" id="org42484b3">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
+  (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
+    (cons 0 (<span class="org-keyword">foo</span> x (funcall #'cons '(cons 3 4) y)))))
 
 (baz 1 2)
 </pre>
 </div>
 
 <div class="org-src-container">
-<pre class="src src-org">((foo 1 (2 . 3)) . 0)
+<pre class="src src-org">((foo 1 (2 cons 3 4)) . 0)
 </pre>
 </div>
 
@@ -307,9 +309,9 @@ unique names also for local functions.
 </div>
 </div>
 
-<div id="outline-container-orgb37f678" class="outline-2">
-<h2 id="orgb37f678">Defining detached value namespaces for macros</h2>
-<div class="outline-text-2" id="text-orgb37f678">
+<div id="outline-container-orgaf53894" class="outline-2">
+<h2 id="orgaf53894">Defining detached value namespaces for macros</h2>
+<div class="outline-text-2" id="text-orgaf53894">
 <p>
 In a similar way, a macro can be used creating a local value namespace
 within macro expansions, this way avoiding interference with the
@@ -387,7 +389,7 @@ you would juse use this:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org61420c6">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
+<pre class="src src-emacs-lisp" id="org55b5490">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
   (with-macro-namespace ((val expr))
     `(1+ val)))
 </pre>
@@ -413,9 +415,9 @@ and be fine.
 </div>
 </div>
 
-<div id="outline-container-orgdc821b1" class="outline-2">
-<h2 id="orgdc821b1">Conclusion</h2>
-<div class="outline-text-2" id="text-orgdc821b1">
+<div id="outline-container-org219e8b9" class="outline-2">
+<h2 id="org219e8b9">Conclusion</h2>
+<div class="outline-text-2" id="text-org219e8b9">
 <p>
 In conclusion, function names should be considered (globally) visible
 to arbitrary code and therefore must be unique, even when defined
