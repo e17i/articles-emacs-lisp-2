@@ -165,7 +165,7 @@ The
 macro expects the same arguments as ~cl-flet~ and creates a local
 function namespace not visible to macro expansions within.
 
-#+begin_src emacs-lisp :lexical yes
+#+begin_src emacs-lisp :lexical yes :results none
 (defmacro local-flet (fdefs &rest body)
   (declare (indent defun))
   (let ((fncsyms (cl-loop for (name . _) in fdefs collect
@@ -264,7 +264,7 @@ initialized as gensyms, then putting in the quoted s-exp previously built.
 So at the end, it automates what is typically done when writing
 macros---after all, that's what macros are made for, arent they?
 
-#+begin_src emacs-lisp
+#+begin_src emacs-lisp :lexical yes :results none
 (defmacro with-macro-namespace (syms body)
   (declare (indent defun))
   (let ((symnames (mapcar (lambda (sym)
