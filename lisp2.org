@@ -1,6 +1,9 @@
 #+HTML_HEAD: <link rel="stylesheet" type="text/css" href="/chrome/rethink.css" />
 #+OPTIONS: toc:nil num:nil html-style:nil
 # #+INFOJS_OPT: view:info toc:nil path:/chrome/org-info.js
+#+LATEX_CLASS: article
+#+LATEX_CLASS_OPTIONS: [landscape]
+#+LATEX_HEADER: \usepackage[a4paper]{anysize}
 #+AUTHOR: Jörg Kollmann
 #+TITLE: On function/value namespaces in Emacs Lisp
 #+DATE: 2023-04-05
@@ -145,9 +148,22 @@ local functions could be only addressed from expressions lexically
 within the local environment, but not from macro expansions.
 
 This idea can't be implemented as a macro, as this would involve code
-walking prior to macro expansion. Nevertheless, the following
-experiment can illustrate what to do manually to avoid name clashes
-when using local functions.
+walking prior to macro expansion. But to implement a reliable code
+walking function, first the syntax tree serving as input should be
+brought into a normal form, where each expression is a list consisting
+of a symbol or a lambda expression in first position and symbols or
+normalized expressions in all further positions. So, for example
+let-constructs would be replaced by lambda calls, macro applications
+introducing different syntax would be expanded. And now it is clear
+there is no normal form and, consequently, no reliable code walking
+without macro expansion. But with macros expanded, those function
+calls are already in place that should not be addressing local
+function definitions. So, afterwards, there is no distinction between
+function calls resulting from macro expansion and function calls
+subject to local function definitions.
+Nevertheless, the following experiment can
+illustrate what to do manually to avoid name clashes when using local
+functions.
 
 In each place a local function is addressed within the environment, it
 would be replaced by a unique symbol, but before macro expansion takes
