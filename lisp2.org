@@ -260,11 +260,11 @@ unique names also for local functions.
 In a similar way, a macro can be used creating a local value namespace
 within macro expansions, this way avoiding interference with the
 environment a macro is expanded into. It is an extension of the
-~with-gensyms~ macro often found. The syntax of ~with-macro-namespace~
-is similar to that of ~let~, naming a list of variables either
-uninitialized or bound to the value of an expression. These variable
-names can be used safely and "un-unquoted" within the macro
-definition.
+~with-gensyms~ macro[fn:4]. The syntax of the following macro
+~with-macro-namespace~ is similar to that of ~let~, naming a list of
+variables either uninitialized or bound to the value of an expression.
+These variable names can be used safely and "un-unquoted" within the
+macro definition.
 
 This is similar to the idea of /metatronic macros/[fn:3]. But there, the
 variables used within macro expansion are enclosed in special syntax.
@@ -379,9 +379,11 @@ macros work as expected.
 Cells and Value Cells, Lisp and Symbolic Computation, Vol 1 No 1, June
 1988, pp. 81-101
 
+[fn:2]Hoyte, Doug: Let over Lambda, 2008, lulu.com
+
 [fn:3][[https://www.tfeb.org/fragments/2022/09/26/metatronic-macros/][Metatronic Macros]]
 
-[fn:2]Hoyte, Doug: Let over Lambda, 2008, lulu.com
+[fn:4]Graham: On Lisp, Prentice Hall, 1993
 
 * COMMENT Local Variables
   # Local Variables:
