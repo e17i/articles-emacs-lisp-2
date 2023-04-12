@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-04-06 Do. 10:11 -->
+<!-- 2023-04-12 Mi. 15:13 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>On function/value namespaces in Emacs Lisp</title>
@@ -13,14 +13,14 @@
 </head>
 <body>
 <div id="preamble" class="status">
-<img src="/chrome/image1.jpg"/><div style="padding:2vh"><a style="font-weight:900; text-decoration:none" href="/">Home</a><span style="float: right">last changed: 2023-04-05</span></div>
+<img src="/chrome/image1.jpg"/><div style="padding:2vh"><a style="font-weight:900; text-decoration:none" href="/">Home</a><span style="float: right">last changed: 2023-04-12</span></div>
 </div>
 <div id="content" class="content">
 <h1 class="title">On function/value namespaces in Emacs Lisp</h1>
 
-<div id="outline-container-org6ab8b7a" class="outline-2">
-<h2 id="org6ab8b7a"></h2>
-<div class="outline-text-2" id="text-org6ab8b7a">
+<div id="outline-container-orgff535ad" class="outline-2">
+<h2 id="orgff535ad"></h2>
+<div class="outline-text-2" id="text-orgff535ad">
 <p>
 Trying to understand, why there are different namespaces for functions
 and values in Lisp<sub>2</sub>, I was diving into that a little bit, taking some
@@ -31,19 +31,17 @@ free name capture.
 </div>
 </div>
 
-<div id="outline-container-org3faf95e" class="outline-2">
-<h2 id="org3faf95e">Macro expansion and local functions</h2>
-<div class="outline-text-2" id="text-org3faf95e">
+<div id="outline-container-org6482527" class="outline-2">
+<h2 id="org6482527">Macro expansion and local functions</h2>
+<div class="outline-text-2" id="text-org6482527">
 <p>
-When diving into that topic, you eventually stumble upon [Gabriel,
-Pitman: Technical Issues of Separation in Function Cells and Value
-Cells, Lisp and Symbolic Computation, Vol 1 No 1, June 1988, pp.
-81-101]. According to that paper, among others a prime reason for two
-separate namespaces is the existence of macros, as expressed in the
-well known citation taken from there: "a single namespace is of
-fundamental importance, and therefore macros are problematic [&#x2026; but]
-macros are fundamental, and therefore a single namespace is
-problematic".
+When diving into that topic, you eventually stumble upon <i>Technical
+Issues of Separation in Function Cells and Value Cells</i><sup><a id="fnr.1" class="footref" href="#fn.1" role="doc-backlink">1</a></sup>.
+According to that paper, among others a prime reason for two separate
+namespaces is the existence of macros, as expressed in the well known
+citation taken from there: "a single namespace is of fundamental
+importance, and therefore macros are problematic [&#x2026; but] macros are
+fundamental, and therefore a single namespace is problematic".
 </p>
 
 <p>
@@ -91,7 +89,7 @@ here, slightly adopted to emacs lisp:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgb304b20">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="orgc2a5b2e">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
@@ -117,7 +115,7 @@ of resolving it in the place of it's expansion:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org3eeb775">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
+<pre class="src src-emacs-lisp" id="orgaf9ffb6">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
   `(funcall ,(symbol-function 'cons) 'foo
             (funcall ,(symbol-function 'cons) ,x
                      (funcall ,(symbol-function 'cons) ,y nil))))
@@ -156,17 +154,17 @@ should be respected globally and also by macro expansions.
 </p>
 
 <p>
-In [Hoyte, Doug: Let over Lambda, 2008, lulu.com], Hoyte concludes,
-"Hygienic macros are, in the best of situations, a beginner's safety
-guard-rail; in the worst of situations they form an electric fence,
-trapping their victims in a sanitised, capture-safe prison".
+In <i>Let over Lambda</i><sup><a id="fnr.2" class="footref" href="#fn.2" role="doc-backlink">2</a></sup>, Hoyte concludes, "Hygienic macros are, in
+the best of situations, a beginner's safety guard-rail; in the worst
+of situations they form an electric fence, trapping their victims in a
+sanitised, capture-safe prison".
 </p>
 </div>
 </div>
 
-<div id="outline-container-orga4cb35b" class="outline-2">
-<h2 id="orga4cb35b">Creating a local function namespace</h2>
-<div class="outline-text-2" id="text-orga4cb35b">
+<div id="outline-container-org3891b65" class="outline-2">
+<h2 id="org3891b65">Creating a local function namespace</h2>
+<div class="outline-text-2" id="text-org3891b65">
 <p>
 The considerations shown above give a strong hint that a common global function
 namespace is expected to exist, having the properties of being shared
@@ -268,7 +266,7 @@ macro:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgee8be13">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="org90aa4c3">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
@@ -289,7 +287,7 @@ the macro expansion shows that it works lexically:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org7454db2">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
+<pre class="src src-emacs-lisp" id="org7234e45">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
     (cons 0 (<span class="org-keyword">foo</span> x (funcall #'cons '(cons 3 4) y)))))
 
@@ -323,9 +321,9 @@ unique names also for local functions.
 </div>
 </div>
 
-<div id="outline-container-org13a9bfc" class="outline-2">
-<h2 id="org13a9bfc">Defining detached value namespaces for macros</h2>
-<div class="outline-text-2" id="text-org13a9bfc">
+<div id="outline-container-org6e28f57" class="outline-2">
+<h2 id="org6e28f57">Defining detached value namespaces for macros</h2>
+<div class="outline-text-2" id="text-org6e28f57">
 <p>
 In a similar way, a macro can be used creating a local value namespace
 within macro expansions, this way avoiding interference with the
@@ -335,6 +333,19 @@ is similar to that of <code>let</code>, naming a list of variables either
 uninitialized or bound to the value of an expression. These variable
 names can be used safely and "un-unquoted" within the macro
 definition.
+</p>
+
+<p>
+This is similar to the idea of <i>metatronic macros</i><sup><a id="fnr.3" class="footref" href="#fn.3" role="doc-backlink">3</a></sup>. But there, the
+variables used within macro expansion are enclosed in special syntax.
+This seems to be unnecessary, if the names to be handled this way are
+already declared as parameters. This way of course, it is not possible at the
+same time to access two variables with the same name, one from the
+environment and the other being declared within the macro expansion. If this was
+needed regularly, it would probably be better to declare a syntax for
+accessing the outer namespace, similar to the <code>function</code> syntax or
+<code>#'</code> for accessing elements from function namespace. This would
+feel more natural to me.
 </p>
 
 <p>
@@ -403,7 +414,7 @@ you would juse use this:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org0166e6e">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
+<pre class="src src-emacs-lisp" id="orga882a2e">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
   (<span class="org-keyword">with-macro-namespace</span> ((val expr))
     `(1+ val)))
 </pre>
@@ -429,9 +440,9 @@ and be fine.
 </div>
 </div>
 
-<div id="outline-container-orge102363" class="outline-2">
-<h2 id="orge102363">Conclusion</h2>
-<div class="outline-text-2" id="text-orge102363">
+<div id="outline-container-orgf12f9b7" class="outline-2">
+<h2 id="orgf12f9b7">Conclusion</h2>
+<div class="outline-text-2" id="text-orgf12f9b7">
 <p>
 In conclusion, function names should be considered (globally) visible
 to arbitrary code and therefore must be unique, even when defined
@@ -457,7 +468,27 @@ macros work as expected.
 </p>
 </div>
 </div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.1" class="footnum" href="#fnr.1" role="doc-backlink">1</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+Gabriel, Pitman: Technical Issues of Separation in Function
+Cells and Value Cells, Lisp and Symbolic Computation, Vol 1 No 1, June
+1988, pp. 81-101
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.2" class="footnum" href="#fnr.2" role="doc-backlink">2</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+Hoyte, Doug: Let over Lambda, 2008, lulu.com
+</p></div></div>
+
+<div class="footdef"><sup><a id="fn.3" class="footnum" href="#fnr.3" role="doc-backlink">3</a></sup> <div class="footpara" role="doc-footnote"><p class="footpara">
+<a href="https://www.tfeb.org/fragments/2022/09/26/metatronic-macros/">Metatronic Macros</a>
+</p></div></div>
+
+
 </div>
+</div></div>
 <div id="postamble" class="status">
 <p class="author">Author: Jörg Kollmann (<a rel="me" href="https://mastodon.social/@joergkb">@joergkb@mastodon.social</a>)</p> <p>Made on emacs org-mode with <a href="https://jessekelly881-rethink.surge.sh/">Rethink</a></p>
 </div>
