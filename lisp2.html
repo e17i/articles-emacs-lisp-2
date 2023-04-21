@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-04-12 Mi. 15:27 -->
+<!-- 2023-04-21 Fr. 09:10 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>On function/value namespaces in Emacs Lisp</title>
@@ -13,14 +13,14 @@
 </head>
 <body>
 <div id="preamble" class="status">
-<img src="/chrome/image1.jpg"/><div style="padding:2vh"><a style="font-weight:900; text-decoration:none" href="/">Home</a><span style="float: right">last changed: 2023-04-12</span></div>
+<img src="/chrome/image1.jpg"/><div style="padding:2vh"><a style="font-weight:900; text-decoration:none" href="/">Home</a><span style="float: right">last changed: 2023-04-21</span></div>
 </div>
 <div id="content" class="content">
 <h1 class="title">On function/value namespaces in Emacs Lisp</h1>
 
-<div id="outline-container-org87322a0" class="outline-2">
-<h2 id="org87322a0"></h2>
-<div class="outline-text-2" id="text-org87322a0">
+<div id="outline-container-org0c6bde1" class="outline-2">
+<h2 id="org0c6bde1"></h2>
+<div class="outline-text-2" id="text-org0c6bde1">
 <p>
 Trying to understand, why there are different namespaces for functions
 and values in Lisp<sub>2</sub>, I was diving into that a little bit, taking some
@@ -31,9 +31,9 @@ free name capture.
 </div>
 </div>
 
-<div id="outline-container-org9f79c19" class="outline-2">
-<h2 id="org9f79c19">Macro expansion and local functions</h2>
-<div class="outline-text-2" id="text-org9f79c19">
+<div id="outline-container-org760f884" class="outline-2">
+<h2 id="org760f884">Macro expansion and local functions</h2>
+<div class="outline-text-2" id="text-org760f884">
 <p>
 When diving into that topic, you eventually stumble upon <i>Technical
 Issues of Separation in Function Cells and Value Cells</i><sup><a id="fnr.1" class="footref" href="#fn.1" role="doc-backlink">1</a></sup>.
@@ -89,7 +89,7 @@ here, slightly adopted to emacs lisp:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org0cb67f7">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="orgc55c808">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
@@ -115,7 +115,7 @@ of resolving it in the place of it's expansion:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgf092ef2">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
+<pre class="src src-emacs-lisp" id="orgcf485de">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
   `(funcall ,(symbol-function 'cons) 'foo
             (funcall ,(symbol-function 'cons) ,x
                      (funcall ,(symbol-function 'cons) ,y nil))))
@@ -162,9 +162,9 @@ sanitised, capture-safe prison".
 </div>
 </div>
 
-<div id="outline-container-orgc4ddbe8" class="outline-2">
-<h2 id="orgc4ddbe8">Creating a local function namespace</h2>
-<div class="outline-text-2" id="text-orgc4ddbe8">
+<div id="outline-container-org07ead78" class="outline-2">
+<h2 id="org07ead78">Creating a local function namespace</h2>
+<div class="outline-text-2" id="text-org07ead78">
 <p>
 The considerations shown above give a strong hint that a common global function
 namespace is expected to exist, having the properties of being shared
@@ -266,7 +266,7 @@ macro:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org5e89530">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="org8b430ef">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
@@ -287,7 +287,7 @@ the macro expansion shows that it works lexically:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org2f6d36a">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
+<pre class="src src-emacs-lisp" id="org087e7d0">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
     (cons 0 (<span class="org-keyword">foo</span> x (funcall #'cons '(cons 3 4) y)))))
 
@@ -321,24 +321,23 @@ unique names also for local functions.
 </div>
 </div>
 
-<div id="outline-container-orgf8f8b8c" class="outline-2">
-<h2 id="orgf8f8b8c">Defining detached value namespaces for macros</h2>
-<div class="outline-text-2" id="text-orgf8f8b8c">
+<div id="outline-container-org9af5635" class="outline-2">
+<h2 id="org9af5635">Defining detached value namespaces for macros</h2>
+<div class="outline-text-2" id="text-org9af5635">
 <p>
 In a similar way, a macro can be used creating a local value namespace
 within macro expansions, this way avoiding interference with the
 environment a macro is expanded into. It is an extension of the
 <code>with-gensyms</code> macro<sup><a id="fnr.3" class="footref" href="#fn.3" role="doc-backlink">3</a></sup>. The syntax of the following macro
-<code>with-macro-namespace</code> is similar to that of <code>let</code>, naming a list of
-variables either uninitialized or bound to the value of an expression.
-These variable names can be used safely and "un-unquoted" within the
+<code>with-macro-namespace</code> is similar, naming a list of variables. These
+variable names can then be used safely and "un-unquoted" within the
 macro definition.
 </p>
 
 <p>
 This is similar to the idea of <i>metatronic macros</i><sup><a id="fnr.4" class="footref" href="#fn.4" role="doc-backlink">4</a></sup>. But there, the
-variables used within macro expansion are enclosed in special syntax.
-This seems to be unnecessary, if the names to be handled this way are
+variables used within macro expansion are enclosed within special syntax.
+This seems to be unnecessary, as the names to be handled this way are
 already declared as parameters. This way of course, it is not possible at the
 same time to access two variables with the same name, one from the
 environment and the other being declared within the macro expansion. If this was
@@ -367,31 +366,19 @@ macros&#x2014;after all, that's what macros are made for, arent they?
 <div class="org-src-container">
 <pre class="src src-emacs-lisp">(<span class="org-keyword">defmacro</span> <span class="org-function-name">with-macro-namespace</span> (syms body)
   (<span class="org-keyword">declare</span> (indent defun))
-  (<span class="org-keyword">let</span> ((symnames (mapcar (<span class="org-keyword">lambda</span> (sym)
-                            (<span class="org-keyword">pcase</span> sym
-                              (`(,var . ,_) var)
-                              (var var)))
-                          syms))
-        (pquote (gensym)))
+  (<span class="org-keyword">let</span> ((pquote (gensym)))
     (<span class="org-keyword">let</span> ((qbody
            (macroexpand-all `(<span class="org-keyword">cl-macrolet</span> ((<span class="org-keyword">quote</span> (arg)
                                                   (<span class="org-keyword">cond</span>
-                                                   ((atom arg) (<span class="org-keyword">if</span> (member arg (<span class="org-keyword">quote</span> ,symnames))
+                                                   ((atom arg) (<span class="org-keyword">if</span> (member arg (<span class="org-keyword">quote</span> ,syms))
                                                                    arg
                                                                  `(,',pquote ,arg)))
                                                    (`(list ,@(mapcar (<span class="org-keyword">lambda</span> (elem) `(<span class="org-keyword">quote</span> ,elem))
                                                                      arg))))))
-                               (list 'let
-                                     (list
-                                      ,@(mapcar (<span class="org-keyword">lambda</span> (symdef)
-                                                  (<span class="org-keyword">cond</span>
-                                                   ((atom symdef) symdef)
-                                                   (`(list ,@symdef))))
-                                                syms))
-                                     ,body)))))
+                               ,body))))
       `(<span class="org-keyword">let</span> ,(mapcar (lambda (sym)
                        `(,sym (gensym ,(symbol-name sym))))
-                     symnames)
+                     syms)
          (<span class="org-keyword">cl-macrolet</span> ((,pquote (arg) `(<span class="org-keyword">quote</span> ,arg)))
            ,qbody)))))
 </pre>
@@ -414,9 +401,10 @@ you would juse use this:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org90ba139">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
-  (<span class="org-keyword">with-macro-namespace</span> ((val expr))
-    `(1+ val)))
+<pre class="src src-emacs-lisp" id="orgf268e39">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
+  (<span class="org-keyword">with-macro-namespace</span> (val)
+    `(<span class="org-keyword">let</span> ((val ,expr))
+       (1+ val))))
 </pre>
 </div>
 
@@ -427,10 +415,12 @@ expanding to
 <div class="org-src-container">
 <pre class="src src-emacs-lisp">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
   (<span class="org-keyword">let</span> ((val (gensym <span class="org-string">"val"</span>)))
-    (list 'let
-          (list
-           (list val expr))
-          (list '1+ val))))
+    (cons 'let
+          (cons
+           (list
+            (list val expr))
+           (list
+            (list '1+ val))))))
 </pre>
 </div>
 
@@ -440,9 +430,9 @@ and be fine.
 </div>
 </div>
 
-<div id="outline-container-org5fee5e8" class="outline-2">
-<h2 id="org5fee5e8">Conclusion</h2>
-<div class="outline-text-2" id="text-org5fee5e8">
+<div id="outline-container-org0d59fd7" class="outline-2">
+<h2 id="org0d59fd7">Conclusion</h2>
+<div class="outline-text-2" id="text-org0d59fd7">
 <p>
 In conclusion, function names should be considered (globally) visible
 to arbitrary code and therefore must be unique, even when defined

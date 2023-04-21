@@ -6,7 +6,7 @@
 #+LATEX_HEADER: \usepackage[a4paper]{anysize}
 #+AUTHOR: Jörg Kollmann
 #+TITLE: On function/value namespaces in Emacs Lisp
-#+DATE: 2023-04-12
+#+DATE: 2023-04-21
 
 * 
 
@@ -261,14 +261,13 @@ In a similar way, a macro can be used creating a local value namespace
 within macro expansions, this way avoiding interference with the
 environment a macro is expanded into. It is an extension of the
 ~with-gensyms~ macro[fn:4]. The syntax of the following macro
-~with-macro-namespace~ is similar to that of ~let~, naming a list of
-variables either uninitialized or bound to the value of an expression.
-These variable names can be used safely and "un-unquoted" within the
+~with-macro-namespace~ is similar, naming a list of variables. These
+variable names can then be used safely and "un-unquoted" within the
 macro definition.
 
 This is similar to the idea of /metatronic macros/[fn:3]. But there, the
-variables used within macro expansion are enclosed in special syntax.
-This seems to be unnecessary, if the names to be handled this way are
+variables used within macro expansion are enclosed within special syntax.
+This seems to be unnecessary, as the names to be handled this way are
 already declared as parameters. This way of course, it is not possible at the
 same time to access two variables with the same name, one from the
 environment and the other being declared within the macro expansion. If this was
@@ -291,6 +290,61 @@ macros---after all, that's what macros are made for, arent they?
 
 #+begin_src emacs-lisp :lexical yes :results none
 (defmacro with-macro-namespace (syms body)
+  (declare (indent defun))
+  (let ((pquote (gensym)))
+    (let ((qbody
+           (macroexpand-all `(cl-macrolet ((quote (arg)
+                                                  (cond
+                                                   ((atom arg) (if (member arg (quote ,syms))
+                                                                   arg
+                                                                 `(,',pquote ,arg)))
+                                                   (`(list ,@(mapcar (lambda (elem) `(quote ,elem))
+                                                                     arg))))))
+                               ,body))))
+      `(let ,(mapcar (lambda (sym)
+                       `(,sym (gensym ,(symbol-name sym))))
+                     syms)
+         (cl-macrolet ((,pquote (arg) `(quote ,arg)))
+           ,qbody)))))
+#+end_src
+
+So instead of writing (just for the sake of an example):
+
+#+begin_src emacs-lisp
+(defmacro foo (expr)
+  (let ((val (gensym)))
+    `(let ((,val ,expr))
+       (1+ ,val))))
+#+end_src
+
+you would juse use this:
+
+#+name: macro-namespace-example
+#+begin_src emacs-lisp :results code :exports both
+(defmacro foo (expr)
+  (with-macro-namespace (val)
+    `(let ((val ,expr))
+       (1+ val))))
+#+end_src
+
+expanding to
+
+#+RESULTS: macro-namespace-example
+#+begin_src emacs-lisp
+(defmacro foo (expr)
+  (let ((val (gensym "val")))
+    (cons 'let
+          (cons
+           (list
+            (list val expr))
+           (list
+            (list '1+ val))))))
+#+end_src
+
+and be fine.
+
+#+begin_src emacs-lisp :lexical yes :results none :exports none
+(defmacro with-macro-namespace-defines (syms body)
   (declare (indent defun))
   (let ((symnames (mapcar (lambda (sym)
                             (pcase sym
@@ -320,38 +374,6 @@ macros---after all, that's what macros are made for, arent they?
          (cl-macrolet ((,pquote (arg) `(quote ,arg)))
            ,qbody)))))
 #+end_src
-
-So instead of writing (just for the sake of an example):
-
-#+begin_src emacs-lisp
-(defmacro foo (expr)
-  (let ((val (gensym)))
-    `(let ((,val ,expr))
-       (1+ ,val))))
-#+end_src
-
-you would juse use this:
-
-#+name: macro-namespace-example
-#+begin_src emacs-lisp :results code :exports both
-(defmacro foo (expr)
-  (with-macro-namespace ((val expr))
-    `(1+ val)))
-#+end_src
-
-expanding to
-
-#+RESULTS: macro-namespace-example
-#+begin_src emacs-lisp
-(defmacro foo (expr)
-  (let ((val (gensym "val")))
-    (list 'let
-          (list
-           (list val expr))
-          (list '1+ val))))
-#+end_src
-
-and be fine.
 
 * Conclusion
 
