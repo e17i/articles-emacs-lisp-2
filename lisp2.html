@@ -3,7 +3,7 @@
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-<!-- 2023-04-21 Fr. 09:10 -->
+<!-- 2023-06-16 Fr. 12:39 -->
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>On function/value namespaces in Emacs Lisp</title>
@@ -18,9 +18,9 @@
 <div id="content" class="content">
 <h1 class="title">On function/value namespaces in Emacs Lisp</h1>
 
-<div id="outline-container-org0c6bde1" class="outline-2">
-<h2 id="org0c6bde1"></h2>
-<div class="outline-text-2" id="text-org0c6bde1">
+<div id="outline-container-orgd278d16" class="outline-2">
+<h2 id="orgd278d16"></h2>
+<div class="outline-text-2" id="text-orgd278d16">
 <p>
 Trying to understand, why there are different namespaces for functions
 and values in Lisp<sub>2</sub>, I was diving into that a little bit, taking some
@@ -31,9 +31,9 @@ free name capture.
 </div>
 </div>
 
-<div id="outline-container-org760f884" class="outline-2">
-<h2 id="org760f884">Macro expansion and local functions</h2>
-<div class="outline-text-2" id="text-org760f884">
+<div id="outline-container-org425fc90" class="outline-2">
+<h2 id="org425fc90">Macro expansion and local functions</h2>
+<div class="outline-text-2" id="text-org425fc90">
 <p>
 When diving into that topic, you eventually stumble upon <i>Technical
 Issues of Separation in Function Cells and Value Cells</i><sup><a id="fnr.1" class="footref" href="#fn.1" role="doc-backlink">1</a></sup>.
@@ -89,11 +89,11 @@ here, slightly adopted to emacs lisp:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgc55c808">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="org5cb0faf">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
-    (<span class="org-keyword">foo</span> x y)))
+    (foo x y)))
 
 (baz 1 2)
 </pre>
@@ -115,14 +115,14 @@ of resolving it in the place of it's expansion:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgcf485de">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
+<pre class="src src-emacs-lisp" id="orgfbeec9f">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y)
   `(funcall ,(symbol-function 'cons) 'foo
             (funcall ,(symbol-function 'cons) ,x
                      (funcall ,(symbol-function 'cons) ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
   (<span class="org-keyword">cl-flet</span> ((cons (x y) (cons y x)))
-    (<span class="org-keyword">foo</span> x y)))
+    (foo x y)))
 
 (baz 1 2)
 </pre>
@@ -145,12 +145,14 @@ MACROLET, the risk of conflict is considerably higher".
 </p>
 
 <p>
-What's done here manually to solve the conflict is similar to the
-solution of hygienic macros, resolving free symbols in the lexical
-context of macro definitions. But maybe this actually was not
-intended by the macro. After all, it is a valid use case to replace
-certain functions at runtime by different implementations, which
-should be respected globally and also by macro expansions.
+What's done manually in this example to solve that conflict is quite
+similar to the solution used by hygienic macros. It involves resolving
+free symbols from within a macro expansion using the lexical context
+of the corresponding macro definition. But maybe this was not at all
+intended by the macro. After all, it is a valid use case to globally
+replace certain functions at runtime by a different implementation,
+which then actually should be respected not only globally, but also by
+macro expansions.
 </p>
 
 <p>
@@ -162,9 +164,9 @@ sanitised, capture-safe prison".
 </div>
 </div>
 
-<div id="outline-container-org07ead78" class="outline-2">
-<h2 id="org07ead78">Creating a local function namespace</h2>
-<div class="outline-text-2" id="text-org07ead78">
+<div id="outline-container-orgbe967d5" class="outline-2">
+<h2 id="orgbe967d5">Creating a local function namespace</h2>
+<div class="outline-text-2" id="text-orgbe967d5">
 <p>
 The considerations shown above give a strong hint that a common global function
 namespace is expected to exist, having the properties of being shared
@@ -174,13 +176,13 @@ consistent state.
 </p>
 
 <p>
-So an alternate approach would be not to fix the error within the macro
-definition, but instead in the local function definition. As local variable
-names are expected to not being hidden by macro expansions&#x2014;and
-consequently, laying the responsibility of not doing that into the
-definition of macros, the same could also be done for local function
-names. But here, as a common global function namespace is
-expected, the responsibility of not hiding it within a local
+So an alternate approach would be not to fix the problem within the
+macro definition, but instead in the place the macro is expanded into.
+As local variable names are expected to not being hidden by macro
+expansions&#x2014;and consequently, laying the responsibility of not doing
+that into the definition of macros, the same could also be done for
+local function names. But here, as a common global function namespace
+is expected, the responsibility of not hiding it within a local
 environment should be placed exactly upon these local environment
 definitions and not on the macro definitions.
 </p>
@@ -188,28 +190,28 @@ definitions and not on the macro definitions.
 <p>
 In consequence, local function definitions would have to make sure
 their names don't clash with any global function definition, so these
-local functions could be only addressed from expressions lexically
-within the local environment, but not from macro expansions.
+local functions could be only addressed from expressions located
+lexically within the local environment, but not from macros expanded
+into that place.
 </p>
 
 <p>
 This idea can't be implemented as a macro, as this would involve code
 walking prior to macro expansion. But to implement a reliable code
-walking function, first the syntax tree serving as input should be
-brought into a normal form, where each expression is a list consisting
+walking function, prerequisite is to bring the syntax tree serving as
+input into a normal form, where each expression is a list consisting
 of a symbol or a lambda expression in first position and symbols or
 normalized expressions in all further positions. So, for example
 let-constructs would be replaced by lambda calls, macro applications
-introducing different syntax would be expanded. And now it is clear
+introducing different syntax would be expanded. By this it gets clear
 there is no normal form and, consequently, no reliable code walking
-without macro expansion. But with macros expanded, those function
-calls are already in place that should not be addressing local
-function definitions. So, afterwards, there is no distinction between
-function calls resulting from macro expansion and function calls
-subject to local function definitions.
-Nevertheless, the following experiment can
-illustrate what to do manually to avoid name clashes when using local
-functions.
+without macro expansion. But with macros expanded, the function calls
+that should not be addressing local function definitions are already
+in place. And then, after macro expansion, there is no distinction
+between function calls resulting from macro expansion and function
+calls subject to local function definitions. Nevertheless, the
+following experiment can illustrate what to do manually to avoid name
+clashes when using local functions.
 </p>
 
 <p>
@@ -220,15 +222,17 @@ don't want to happen here.
 </p>
 
 <p>
-The macro <code>local-flet</code> uses a function code-walking the given
-body, doing this replacement. Fortunately, given the definition of a
+The macro <code>local-flet</code> uses a function code-walking the given body,
+doing this replacement. Fortunately, given the definition of a
 separate function namespace, function names can only appear in exactly
 two situations: in the function position of expressions, or being
 sharp-quoted; that is as argument to the <code>function</code> function.
-Unfortunately, code-walking isn't that easy, so this works only in
-simple cases.
-The
-macro expects the same arguments as <code>cl-flet</code> and creates a local
+Unfortunately, as shown above, actually code-walking isn't that easy,
+so this works only in simple cases.
+</p>
+
+<p>
+The macro expects the same arguments as <code>cl-flet</code> and creates a local
 function namespace not visible to macro expansions within.
 </p>
 
@@ -260,17 +264,17 @@ function namespace not visible to macro expansions within.
 </div>
 
 <p>
-Using this, the function definition from the example above can be
+Using this, the function definition from the example above could be
 modified as follows, resolving the issue without any need to modify the
 macro:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org8b430ef">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
+<pre class="src src-emacs-lisp" id="orgc15fdc5">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (x y) `(cons 'foo (cons ,x (cons ,y nil))))
 
 (<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
-  (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
-    (<span class="org-keyword">foo</span> x y)))
+  (local-flet ((cons (x y) (cons y x)))
+    (foo x y)))
 
 (baz 1 2)
 </pre>
@@ -287,9 +291,9 @@ the macro expansion shows that it works lexically:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="org087e7d0">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
-  (<span class="org-keyword">local-flet</span> ((cons (x y) (cons y x)))
-    (cons 0 (<span class="org-keyword">foo</span> x (funcall #'cons '(cons 3 4) y)))))
+<pre class="src src-emacs-lisp" id="orgda5f1b4">(<span class="org-keyword">defun</span> <span class="org-function-name">baz</span> (x y)
+  (local-flet ((cons (x y) (cons y x)))
+    (cons 0 (foo x (funcall #'cons '(cons 3 4) y)))))
 
 (baz 1 2)
 </pre>
@@ -301,7 +305,7 @@ the macro expansion shows that it works lexically:
 </div>
 
 <p>
-And now, if you additionally choose to replace the
+Now, if you additionally choose to replace the
 global definition of <code>cons</code> using a dynamic approach like <code>cl-letf</code>,
 as expected this affects the global environment and macro expansions,
 but leaves the local definition.
@@ -315,21 +319,24 @@ definitions, would also be subject to the replacement.
 
 <p>
 But as code-walking without prior macro expansion cannot work reliably,
-this stays an idea. In real life, it can be taken as a hint how to use
-unique names also for local functions.
+this stays an idea. In real life, it can be taken as a hint to use
+unique names also for local functions. So it seems to be a good idea
+to use the naming conventions used for global functions in emacs lisp,
+prepending function names with a package name, in a similar way also
+for local function definitions.
 </p>
 </div>
 </div>
 
-<div id="outline-container-org9af5635" class="outline-2">
-<h2 id="org9af5635">Defining detached value namespaces for macros</h2>
-<div class="outline-text-2" id="text-org9af5635">
+<div id="outline-container-orgb9fdee7" class="outline-2">
+<h2 id="orgb9fdee7">Defining detached value namespaces for macros</h2>
+<div class="outline-text-2" id="text-orgb9fdee7">
 <p>
-In a similar way, a macro can be used creating a local value namespace
+In a similar way, a macro can be used to create a local value namespace
 within macro expansions, this way avoiding interference with the
-environment a macro is expanded into. It is an extension of the
-<code>with-gensyms</code> macro<sup><a id="fnr.3" class="footref" href="#fn.3" role="doc-backlink">3</a></sup>. The syntax of the following macro
-<code>with-macro-namespace</code> is similar, naming a list of variables. These
+environment a macro is expanded into. The macro shown here is an extension of the
+<code>with-gensyms</code> macro<sup><a id="fnr.3" class="footref" href="#fn.3" role="doc-backlink">3</a></sup>. The syntax of that macro,
+<code>with-macro-namespace</code>, is similar, naming a list of variables. These
 variable names can then be used safely and "un-unquoted" within the
 macro definition.
 </p>
@@ -339,8 +346,8 @@ This is similar to the idea of <i>metatronic macros</i><sup><a id="fnr.4" class=
 variables used within macro expansion are enclosed within special syntax.
 This seems to be unnecessary, as the names to be handled this way are
 already declared as parameters. This way of course, it is not possible at the
-same time to access two variables with the same name, one from the
-environment and the other being declared within the macro expansion. If this was
+same time to access two variables with the same name, the first one from the
+environment and the other one being declared within the macro expansion. If this was
 needed regularly, it would probably be better to declare a syntax for
 accessing the outer namespace, similar to the <code>function</code> syntax or
 <code>#'</code> for accessing elements from function namespace. This would
@@ -401,7 +408,7 @@ you would juse use this:
 </p>
 
 <div class="org-src-container">
-<pre class="src src-emacs-lisp" id="orgf268e39">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
+<pre class="src src-emacs-lisp" id="org4f47882">(<span class="org-keyword">defmacro</span> <span class="org-function-name">foo</span> (expr)
   (<span class="org-keyword">with-macro-namespace</span> (val)
     `(<span class="org-keyword">let</span> ((val ,expr))
        (1+ val))))
@@ -430,14 +437,14 @@ and be fine.
 </div>
 </div>
 
-<div id="outline-container-org0d59fd7" class="outline-2">
-<h2 id="org0d59fd7">Conclusion</h2>
-<div class="outline-text-2" id="text-org0d59fd7">
+<div id="outline-container-org1799f6e" class="outline-2">
+<h2 id="org1799f6e">Conclusion</h2>
+<div class="outline-text-2" id="text-org1799f6e">
 <p>
-In conclusion, function names should be considered (globally) visible
+In conclusion, all function names should be considered (somehow globally) visible
 to arbitrary code and therefore must be unique, even when defined
 within local environments. Macros addressing a function cannot expect
-it to be hidden by local functions. A solution to this could use an
+it to be hidden by local function definitions. A solution to this could use an
 approach similar to that of implementing package namespaces, which
 also aim to prevent name clashes between globally visible function
 names.
@@ -445,8 +452,8 @@ names.
 
 <p>
 On the other side, lexical variable names can only be used within
-their lexical environment. So here macro expansions must make sure not
-interfere with them, which can be addressed using local value
+their lexical environment. So here the macro expansions must make sure
+to not interfere with them. This can be addressed using local variable
 namespaces.
 </p>
 
