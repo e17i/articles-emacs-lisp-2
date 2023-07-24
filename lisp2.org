@@ -6,15 +6,15 @@
 #+LATEX_HEADER: \usepackage[a4paper]{anysize}
 #+AUTHOR: Jörg Kollmann
 #+TITLE: On function/value namespaces in Emacs Lisp
-#+DATE: 2023-04-21
+#+DATE: 2023-07-24
 
 * 
 
-Trying to understand, why there are different namespaces for functions
-and values in Lisp_2, I was diving into that a little bit, taking some
-notes and preparing a set of macros. Providing local namespaces for
-the development of further macros, they can help to prevent unwanted
-free name capture.
+Trying to understand why there are different namespaces for functions
+and values in Lisp_2, I was diving into that a little bit. The notes
+taken and macros written on that way are shown here. Providing local
+namespaces for the development of further macros, they can help to
+prevent unwanted free name capture.
 
 * Macro expansion and local functions
 
@@ -26,37 +26,39 @@ citation taken from there: "a single namespace is of fundamental
 importance, and therefore macros are problematic [... but] macros are
 fundamental, and therefore a single namespace is problematic".
 
-So which problem with macros is solved by different namespaces? When
-accidentally naming a local variable the same as a global function,
-with a single namespace this would hide the global function. While not
-being encouraged at all, name clashes could be resolved within a local
-environment without refactoring the variable names. If the function was not
-addressed within the environment, the fact that it is hidden wouldn't
-lead to an erraneous result when evaluating the environment's forms.
-But this would work only as long as no macros are used. As macros can
-expand arbitrary code into the environment, this prerequisite can not
-be checked.
+So which problem with macros is solved by applying different
+namespaces? When accidentally naming a local variable the same as a
+global function, with a single namespace this would hide the global
+function. While not being encouraged at all, name clashes could be
+resolved within a local environment without refactoring the variable
+names. For example, if the function was not addressed within the
+environment, the fact that it is hidden wouldn't be a problem at al.
+But this would work only as long as no macros are used. Because macros
+can expand arbitrary code into the environment, the prerequisite given
+above could not be checked.
 
-To solve this problem with name collisions in macro expansions, the
+To solve this problem of name collisions in macro expansions, the
 following aspects need to be handled. For variable names of
 let-environments within the macro expansion, it is typically handled
 by creating uninterned anonymouns symbols (by means of ~gensym~)
-replacing them. This way, for variables, effectively a local namespace
-is created only visible within the macro expansion. Next, local variable
-names of the environment can't be addressed from the macro expansion
-as long as they can't be known in the macro definition. So addressing
-an arbitrary value symbol from within macro expansion would be an error, if
-that name was not communicated somehow.
+replacing their value symbols. This way, for variables, effectively a
+local namespace is created only visible within the macro expansion.
+Next, local variable names of the outer environment a macro expansion
+is inserted into can't be addressed from within the macro expansion as
+long as they can't be known in the macro definition. So addressing an
+arbitrary value symbol from within macro expansion would be an error,
+if that name was not communicated somehow.
 
-Stays the question of function names being addressed from the macro.
-Here, in accordance to the previous statement, the set of global
-functions can be seen as being communicated. So macros can expect to
-address global function names regardless of the local environment they
-are expanded into. To make this work, the problem mentioned above
-would be mitigated by using a common function namespace shared between
-the place the macro is defined in and environments it is expanded
-into. Given that, macros can expect function names addressed in their
-definition to be valid also in the places they are expanded into.
+Stays the question of function names being addressed from within the
+macro expansion. Here, in accordance to the previous statement, the
+set of global functions can be seen as being communicated. So macros
+should expect being able to address global function names regardless
+of the local environment they are expanded into. To make this work,
+the problem mentioned above would be mitigated by using a common
+function namespace shared between the place the macro is defined in
+and environments it is expanded into. Given that, macros could expect
+function names addressed in their definition to be valid also in the
+places they are expanded into.
 
 But in the paper mentioned above, an example is given also
 showing name collisions in function namespace. It is repeated
@@ -115,9 +117,9 @@ similar to the solution used by hygienic macros. It involves resolving
 free symbols from within a macro expansion using the lexical context
 of the corresponding macro definition. But maybe this was not at all
 intended by the macro. After all, it is a valid use case to globally
-replace certain functions at runtime by a different implementation,
-which then actually should be respected not only globally, but also by
-macro expansions.
+replace the implementation of certain functions at runtime, which then
+actually should be respected not only globally, but also by macro
+expansions.
 
 In /Let over Lambda/[fn:2], Hoyte concludes, "Hygienic macros are, in
 the best of situations, a beginner's safety guard-rail; in the worst
@@ -135,12 +137,12 @@ consistent state.
 So an alternate approach would be not to fix the problem within the
 macro definition, but instead in the place the macro is expanded into.
 As local variable names are expected to not being hidden by macro
-expansions---and consequently, laying the responsibility of not doing
+expansions---and consequently, pushing the responsibility of not doing
 that into the definition of macros, the same could also be done for
 local function names. But here, as a common global function namespace
 is expected, the responsibility of not hiding it within a local
 environment should be placed exactly upon these local environment
-definitions and not on the macro definitions.
+definitions and not be pushed to the macro definitions.
 
 In consequence, local function definitions would have to make sure
 their names don't clash with any global function definition, so these
@@ -155,15 +157,15 @@ input into a normal form, where each expression is a list consisting
 of a symbol or a lambda expression in first position and symbols or
 normalized expressions in all further positions. So, for example
 let-constructs would be replaced by lambda calls, macro applications
-introducing different syntax would be expanded. By this it gets clear
+introducing different syntax would be expanded. Given this it is clear
 there is no normal form and, consequently, no reliable code walking
-without macro expansion. But with macros expanded, the function calls
-that should not be addressing local function definitions are already
-in place. And then, after macro expansion, there is no distinction
-between function calls resulting from macro expansion and function
-calls subject to local function definitions. Nevertheless, the
-following experiment can illustrate what to do manually to avoid name
-clashes when using local functions.
+without macro expansion. On the other side, with macros expanded
+already, the function calls that should not be addressing local
+function definitions are already in place. And then, after macro
+expansion, there is no distinction between function calls resulting
+from macro expansion and function calls subject to local function
+definitions. Nevertheless, the following experiment can illustrate
+what to do manually to avoid name clashes when using local functions.
 
 In each place a local function is addressed within the environment, it
 would be replaced by a unique symbol, but before macro expansion takes
@@ -186,25 +188,25 @@ function namespace not visible to macro expansions within.
   (declare (indent defun))
   (let ((fncsyms (cl-loop for (name . _) in fdefs collect
                           `(,name . ,(gensym name)))))
-    (cl-labels ((lf--assoc-value-safe (name assoc)
+    (cl-labels ((local/assoc-value-safe (name assoc)
                                       (pcase name
-                                        (`(lambda ,args ,body) `(lambda ,args ,(lf--replace-local-functions fncsyms body)))
+                                        (`(lambda ,args ,body) `(lambda ,args ,(local/replace-local-functions fncsyms body)))
                                         (name (let ((val (assoc name assoc)))
                                                 (if val (cdr val)
                                                   name)))))
-                (lf--replace-local-functions (fncsyms expr)
+                (local/replace-local-functions (fncsyms expr)
                                              (pcase expr
-                                               (`(function ,fnc) `(function ,(lf--assoc-value-safe fnc fncsyms)))
+                                               (`(function ,fnc) `(function ,(local/assoc-value-safe fnc fncsyms)))
                                                (`(quote . ,rest) `(quote . ,rest))
-                                               (`(,fnc . ,args) `(,(lf--assoc-value-safe fnc fncsyms)
+                                               (`(,fnc . ,args) `(,(local/assoc-value-safe fnc fncsyms)
                                                                   .
                                                                   ,(cl-loop for elem in args collect
-                                                                            (lf--replace-local-functions fncsyms elem))))
+                                                                            (local/replace-local-functions fncsyms elem))))
                                                (value value))))
       `(cl-flet ,(cl-loop for (name . expr) in fdefs collect
-                          `(,(lf--assoc-value-safe name fncsyms) . ,expr))
+                          `(,(local/assoc-value-safe name fncsyms) . ,expr))
          ,@(cl-loop for expr in body collect
-                    (lf--replace-local-functions fncsyms expr))))))
+                    (local/replace-local-functions fncsyms expr))))))
 #+end_src
 
 Using this, the function definition from the example above could be
@@ -253,12 +255,12 @@ In a similar way, a ~local-labels~ macro would be devised. But there,
 the local function definitions, possibly having recursive
 definitions, would also be subject to the replacement.
 
-But as code-walking without prior macro expansion cannot work reliably,
-this stays an idea. In real life, it can be taken as a hint to use
-unique names also for local functions. So it seems to be a good idea
-to use the naming conventions used for global functions in emacs lisp,
-prepending function names with a package name, in a similar way also
-for local function definitions.
+But as code-walking without prior macro expansion cannot work
+reliably, this stays an idea. In real life, it can be taken as a hint
+to use unique names also for local functions. So it seems to be a good
+idea to use same the naming conventions as those used for global
+functions in emacs lisp, prepending function names with a package
+name, in a similar way also for local function definitions.
 
 * Defining detached value namespaces for macros
 
@@ -266,27 +268,22 @@ In a similar way, a macro can be used to create a local value namespace
 within macro expansions, this way avoiding interference with the
 environment a macro is expanded into. The macro shown here is an extension of the
 ~with-gensyms~ macro[fn:4]. The syntax of that macro,
-~with-macro-namespace~, is similar, naming a list of variables. These
-variable names can then be used safely and "un-unquoted" within the
-macro definition.
+~with-macro-namespace~, is similar, just naming a list of value symbols. These
+symbol names can then be used safely and "un-unquoted" within the
+actual macro definition.
 
 This is similar to the idea of /metatronic macros/[fn:3]. But there, the
-variables used within macro expansion are enclosed within special syntax.
+value symbols used within macro expansion are enclosed within special syntax.
 This seems to be unnecessary, as the names to be handled this way are
-already declared as parameters. This way of course, it is not possible at the
-same time to access two variables with the same name, the first one from the
-environment and the other one being declared within the macro expansion. If this was
-needed regularly, it would probably be better to declare a syntax for
-accessing the outer namespace, similar to the ~function~ syntax or
-~#'~ for accessing elements from function namespace. This would
-feel more natural to me.
+already declared.
 
 The macro works by building a quoted expression (which generates the
-s-exp to be used as macro expansion), but unquoting all references to
-the variables of the detached namespace. It is done by expanding each
-quoted list into a list expression whose elements are quoted. If an
-element is part of the detached namespace, it is not quoted, this way
-effectively unquoting it.
+s-exp to be used as macro expansion), but then unquoting all
+references to the value symbol names of the detached namespace. It is
+done by expanding each quoted list into a list expression whose
+elements are quoted. If an element is declared to be part of the
+detached namespace, instead it is not quoted, this way effectively and
+implicitely unquoting it.
 
 It then expands to an expression where the variables are defined and
 initialized as gensyms, then putting in the quoted s-exp previously built.
@@ -303,6 +300,7 @@ macros---after all, that's what macros are made for, arent they?
                                                    ((atom arg) (if (member arg (quote ,syms))
                                                                    arg
                                                                  `(,',pquote ,arg)))
+                                                   ((eq (car arg) 'outer) `(,',pquote ,(cadr arg)))
                                                    (`(list ,@(mapcar (lambda (elem) `(quote ,elem))
                                                                      arg))))))
                                ,body))))
@@ -348,6 +346,17 @@ expanding to
 
 and be fine.
 
+If a variable of an outer namespace having the same name as a variable
+of the local macro namespace is to be addressed from within the
+expansion, this can be done with the ~outer~ form. This works in a way
+similar to using ~function~ to explicitely address names of the
+function namespace from within value namespace. It just translates
+~(outer val)~ to a quoted symbol ~'val~ (actually just leaving it
+being quoted), so it can also be used when addressing arbitrary
+symbols not defined in the local namespace without any harm. It just
+makes sure that the unquoting mechanism for local value symbol names
+is overridden.
+
 #+begin_src emacs-lisp :lexical yes :results none :exports none
 (defmacro with-macro-namespace-defines (syms body)
   (declare (indent defun))
@@ -363,6 +372,7 @@ and be fine.
                                                    ((atom arg) (if (member arg (quote ,symnames))
                                                                    arg
                                                                  `(,',pquote ,arg)))
+                                                   ((eq (car arg) 'outer) `(,',pquote ,(cadr arg)))
                                                    (`(list ,@(mapcar (lambda (elem) `(quote ,elem))
                                                                      arg))))))
                                (list 'let
@@ -385,20 +395,20 @@ and be fine.
 In conclusion, all function names should be considered (somehow globally) visible
 to arbitrary code and therefore must be unique, even when defined
 within local environments. Macros addressing a function cannot expect
-it to be hidden by local function definitions. A solution to this could use an
+them to be hidden by local function definitions. A solution to this could use an
 approach similar to that of implementing package namespaces, which
 also aim to prevent name clashes between globally visible function
 names.
 
 On the other side, lexical variable names can only be used within
-their lexical environment. So here the macro expansions must make sure
-to not interfere with them. This can be addressed using local variable
-namespaces.
+their lexical environment. So here it's up to the macro expansions to
+make sure not to interfere with them. This can be addressed using
+local variable namespaces.
 
 As long as these two points are respected, the separate function
 namespace helping to prevent hiding global functions within local
-variable-environments can serve as another building block to make
-macros work as expected.
+value environments can serve as another building block to make macros
+work as expected.
 
 * Footnotes
 
