@@ -290,7 +290,9 @@ initialized as gensyms, then putting in the quoted s-exp previously built.
 So at the end, it automates what is typically done when writing
 macros---after all, that's what macros are made for, arent they?
 
-#+begin_src emacs-lisp :lexical yes :results none
+#+begin_src emacs-lisp :lexical yes :results none :tangle yes
+(provide 'macro-namespace)
+
 (defmacro with-macro-namespace (syms body)
   (declare (indent defun))
   (let ((pquote (gensym)))
@@ -357,7 +359,7 @@ symbols not defined in the local namespace without any harm. It just
 makes sure that the unquoting mechanism for local value symbol names
 is overridden.
 
-#+begin_src emacs-lisp :lexical yes :results none :exports none
+#+begin_src emacs-lisp :lexical yes :results none :exports none :tangle yes
 (defmacro with-macro-namespace-defines (syms body)
   (declare (indent defun))
   (let ((symnames (mapcar (lambda (sym)
