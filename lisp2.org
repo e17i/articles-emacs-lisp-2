@@ -351,13 +351,15 @@ and be fine.
 If a variable of an outer namespace having the same name as a variable
 of the local macro namespace is to be addressed from within the
 expansion, this can be done with the ~outer~ form. This works in a way
-similar to using ~function~ to explicitely address names of the
-function namespace from within value namespace. It just translates
-~(outer val)~ to a quoted symbol ~'val~ (actually just leaving it
-being quoted), so it can also be used when addressing arbitrary
-symbols not defined in the local namespace without any harm. It just
-makes sure that the unquoting mechanism for local value symbol names
-is overridden.
+similar to using ~function~, explicitely addressing names of the
+function namespace from within value namespace. Here, it just
+translates ~(outer val)~ to a quoted symbol ~'val~ (actually just
+leaving it being quoted), so it can also be used when addressing
+arbitrary symbols not defined in the local namespace without any harm.
+It just makes sure that the unquoting mechanism for local value symbol
+names is overridden. At the end, this macro gives a fine-grained and
+explicit control for avoiding and adressing symbols from an
+environment a macro is expanded into.
 
 #+begin_src emacs-lisp :lexical yes :results none :exports none :tangle yes
 (defmacro with-macro-namespace-defines (syms body)
